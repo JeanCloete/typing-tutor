@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Lesson Complete - Typing Tutor{% endblock %}
+
+{% block content %}
+<div class="completion-container">
+    <div class="completion-card">
+        <div class="completion-header">
+            <div class="completion-icon">
+                <i class="fas fa-trophy"></i>
+            </div>
+            <h1>{{ lesson.title }} Complete!</h1>
+            <p class="completion-subtitle">Congratulations on your achievement</p>
+        </div>
+
+        <div class="completion-stats">
+            <div class="completion-stat">
+                <div class="stat-icon">
+                    <i class="fas fa-tachometer-alt"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">{{ progress.wpm | round(1) }}</div>
+                    <div class="stat-label">Words Per Minute</div>
+                </div>
+            </div>
+
+            <div class="completion-stat">
+                <div class="stat-icon">
+                    <i class="fas fa-bullseye"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">{{ progress.accuracy | round(1) }}%</div>
+                    <div class="stat-label">Accuracy</div>
+                </div>
+            </div>
+
+            <div class="completion-stat">
+                <div class="stat-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">{{ (progress.time_taken // 60)|int }}:{{ (progress.time_taken % 60)|int|string|rjust(2, '0') }}</div>
+                    <div class="stat-label">Time Taken</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="completion-message">
+            {% if progress.accuracy >= 95 %}
+            <div class="success-message">
+                <div class="celebration-emoji">🎉</div>
+                <h2>Excellent Work!</h2>
+                <p>You've achieved the required 95% accuracy and can proceed to the next lesson.</p>
+                {% if next_lesson %}
+                <p><strong>{{ next_lesson.title }}</strong> is now unlocked!</p>
+                {% else %}
+                <p><strong>Congratulations! You've completed all lessons!</strong></p>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="needs-practice-message">
+                <div class="practice-emoji">💪</div>
+                <h2>Keep Practicing!</h2>
+                <p>You need 95% accuracy to unlock the next lesson. Your current accuracy is {{ progress.accuracy | round(1) }}%.</p>
+                <p>Focus on accuracy over speed, and you'll get there!</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="completion-actions">
+            {% if progress.accuracy >= 95 and next_lesson %}
+            <a href="{{ url_for('practice', lesson_id=next_lesson.id) }}" class="btn btn-primary btn-large">
+                <i class="fas fa-arrow-right"></i>
+                Continue to {{ next_lesson.title }}
+            </a>
+            {% endif %}
+            
+            <a href="{{ url_for('practice', lesson_id=lesson.id) }}" class="btn btn-secondary">
+                <i class="fas fa-redo"></i>
+                Practice Again
+            </a>
+            
+            <a href="{{ url_for('progress') }}" class="btn btn-outline">
+                <i class="fas fa-chart-line"></i>
+                View Progress
+            </a>
+            
+            <a href="{{ url_for('index') }}" class="btn btn-outline">
+                <i class="fas fa-list"></i>
+                All Lessons
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+.completion-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 60vh;
+    padding: 2rem;
+}
+
+.completion-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    padding: 3rem;
+    text-align: center;
+    max-width: 600px;
+    width: 100%;
+    box-shadow: var(--shadow-lg);
+}
+
+.completion-header {
+    margin-bottom: 2rem;
+}
+
+.completion-icon {
+    font-size: 4rem;
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+}
+
+.completion-header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.completion-subtitle {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+}
+
+.completion-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.completion-stat {
+    background: var(--surface-color);
+    border-radius: 16px;
+    padding: 1.5rem;
+    border: 1px solid var(--border-color);
+}
+
+.completion-stat .stat-icon {
+    font-size: 1.5rem;
+    color: var(--primary-color);
+    margin-bottom: 0.5rem;
+}
+
+.completion-stat .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.completion-stat .stat-label {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.completion-message {
+    margin: 2rem 0;
+    padding: 2rem;
+    border-radius: 16px;
+}
+
+.success-message {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.05) 100%);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.needs-practice-message {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.05) 100%);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.celebration-emoji, .practice-emoji {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.completion-message h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.completion-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+}
+
+@media (max-width: 768px) {
+    .completion-card {
+        padding: 2rem;
+        margin: 1rem;
+    }
+    
+    .completion-header h1 {
+        font-size: 2rem;
+    }
+    
+    .completion-actions {
+        flex-direction: column;
+    }
+}
+</style>
+{% endblock %}

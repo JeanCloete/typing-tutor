@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block title %}Progress Dashboard - Typing Tutor{% endblock %}
+
+{% block content %}
+<div class="progress-dashboard">
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        <h1>Your Progress Dashboard</h1>
+        <p>Track your typing improvement over time</p>
+    </div>
+
+    <!-- Statistics Overview -->
+    <div class="stats-overview">
+        <div class="stats-grid">
+            <div class="stat-card large">
+                <div class="stat-icon">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">{{ stats.completion_rate }}%</div>
+                    <div class="stat-label">Course Progress</div>
+                    <div class="stat-sublabel">{{ stats.completed_lessons }}/21 lessons completed</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-tachometer-alt"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">{{ stats.avg_wpm }}</div>
+                    <div class="stat-label">Average WPM</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-bullseye"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">{{ stats.avg_accuracy }}%</div>
+                    <div class="stat-label">Average Accuracy</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-trophy"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">{{ stats.completed_lessons }}</div>
+                    <div class="stat-label">Lessons Mastered</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Chart -->
+    <div class="chart-section">
+        <div class="section-header">
+            <h2>Progress Over Time</h2>
+        </div>
+        <div class="chart-container">
+            <canvas id="progressChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Detailed Progress -->
+    <div class="detailed-progress">
+        <div class="section-header">
+            <h2>Lesson Details</h2>
+            <p>Your performance on each completed lesson</p>
+        </div>
+
+        {% if records %}
+        <div class="progress-table">
+            <div class="table-header">
+                <div class="table-cell">Lesson</div>
+                <div class="table-cell">WPM</div>
+                <div class="table-cell">Accuracy</div>
+                <div class="table-cell">Status</div>
+                <div class="table-cell">Date</div>
+                <div class="table-cell">Action</div>
+            </div>
+            
+            {% for record in records %}
+            <div class="table-row {% if record.accuracy >= 95 %}row-completed{% endif %}">
+                <div class="table-cell">
+                    <div class="lesson-info">
+                        <span class="lesson-number">{{ record.lesson_id }}</span>
+                        <span class="lesson-title">{{ lessons[record.lesson_id].title }}</span>
+                    </div>
+                </div>
+                <div class="table-cell">
+                    <span class="metric-value">{{ record.wpm | round(1) }}</span>
+                </div>
+                <div class="table-cell">
+                    <div class="accuracy-display">
+                        <span class="metric-value">{{ record.accuracy | round(1) }}%</span>
+                        <div class="accuracy-bar">
+                            <div class="accuracy-fill" style="width: {{ record.accuracy }}%"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="table-cell">
+                    {% if record.accuracy >= 95 %}
+                        <span class="status-badge status-completed">
+                            <i class="fas fa-check-circle"></i>
+                            Completed
+                        </span>
+                    {% else %}
+                        <span class="status-badge status-needs-practice">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Needs Practice
+                        </span>
+                    {% endif %}
+                </div>
+                <div class="table-cell">
+                    <span class="date">{{ record.timestamp.strftime('%m/%d/%Y') }}</span>
+                </div>
+                <div class="table-cell">
+                    <a href="{{ url_for('practice', lesson_id=record.lesson_id) }}" 
+                       class="btn btn-sm btn-outline">
+                        <i class="fas fa-play"></i>
+                        Practice
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">
+                <i class="fas fa-chart-bar"></i>
+            </div>
+            <h3>No Progress Yet</h3>
+            <p>Start practicing lessons to see your progress here!</p>
+            <a href="{{ url_for('index') }}" class="btn btn-primary">
+                <i class="fas fa-play"></i>
+                Start First Lesson
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Achievements Section -->
+    <div class="achievements-section">
+        <div class="section-header">
+            <h2>Achievements</h2>
+            <p>Milestones you've reached</p>
+        </div>
+        
+        <div class="achievements-grid">
+            <div class="achievement-card {% if stats.completed_lessons >= 1 %}achievement-unlocked{% endif %}">
+                <div class="achievement-icon">🎯</div>
+                <div class="achievement-title">First Steps</div>
+                <div class="achievement-description">Complete your first lesson</div>
+            </div>
+            
+            <div class="achievement-card {% if stats.completed_lessons >= 5 %}achievement-unlocked{% endif %}">
+                <div class="achievement-icon">📚</div>
+                <div class="achievement-title">Getting Started</div>
+                <div class="achievement-description">Complete 5 lessons</div>
+            </div>
+            
+            <div class="achievement-card {% if stats.completed_lessons >= 10 %}achievement-unlocked{% endif %}">
+                <div class="achievement-icon">⚡</div>
+                <div class="achievement-title">Halfway There</div>
+                <div class="achievement-description">Complete 10 lessons</div>
+            </div>
+            
+            <div class="achievement-card {% if stats.avg_wpm >= 40 %}achievement-unlocked{% endif %}">
+                <div class="achievement-icon">🚀</div>
+                <div class="achievement-title">Speed Demon</div>
+                <div class="achievement-description">Reach 40 WPM average</div>
+            </div>
+            
+            <div class="achievement-card {% if stats.avg_accuracy >= 95 %}achievement-unlocked{% endif %}">
+                <div class="achievement-icon">🎖️</div>
+                <div class="achievement-title">Precision Master</div>
+                <div class="achievement-description">Maintain 95% accuracy</div>
+            </div>
+            
+            <div class="achievement-card {% if stats.completed_lessons >= 21 %}achievement-unlocked{% endif %}">
+                <div class="achievement-icon">👑</div>
+                <div class="achievement-title">Typing Master</div>
+                <div class="achievement-description">Complete all lessons</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script>
+// Progress Chart Data
+const progressData = {
+    labels: [{% for record in records %}"Lesson {{ record.lesson_id }}"{% if not loop.last %},{% endif %}{% endfor %}],
+    datasets: [{
+        label: 'WPM',
+        data: [{% for record in records %}{{ record.wpm }}{% if not loop.last %},{% endif %}{% endfor %}],
+        borderColor: 'rgba(102, 126, 234, 1)',
+        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+        tension: 0.4,
+        yAxisID: 'y'
+    }, {
+        label: 'Accuracy (%)',
+        data: [{% for record in records %}{{ record.accuracy }}{% if not loop.last %},{% endif %}{% endfor %}],
+        borderColor: 'rgba(16, 185, 129, 1)',
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        tension: 0.4,
+        yAxisID: 'y1'
+    }]
+};
+
+// Initialize Chart
+if (document.getElementById('progressChart')) {
+    const ctx = document.getElementById('progressChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: progressData,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                }
+            },
+            scales: {
+                x: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: 'Lessons'
+                    }
+                },
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'WPM'
+                    },
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Accuracy (%)'
+                    },
+                    grid: {
+                        drawOnChartArea: false,
+                    },
+                    min: 0,
+                    max: 100
+                }
+            }
+        }
+    });
+}
+</script>
+{% endblock %}
