@@ -1,0 +1,1154 @@
+File structure
+typing_tutor/
+│
+├── app.py                   # Main Flask app
+├── requirements.txt         # Python dependencies (e.g., flask)
+├── lessons/                 # Folder for lessons data (text for each lesson)
+│   ├── lesson1.txt
+│   ├── lesson2.txt
+│   ├── ...
+│   └── lesson21.txt
+│
+├── static/                  # Static files (CSS, JS, images)
+│   ├── css/
+│   │   └── styles.css
+│   ├── js/
+│   │   └── scripts.js
+│   └── images/              # Any images or icons
+│
+├── templates/               # HTML templates for rendering pages
+│   ├── base.html            # Base template for shared layout
+│   ├── index.html           # Home / lesson selection page
+│   ├── practice.html        # Typing practice page
+│   ├── login.html           # User login page
+│   ├── register.html        # User registration page
+│   └── progress.html        # Progress dashboard page
+│
+├── models.py                # Database models (Users, Progress, Lessons)
+├── utils.py                 # Helper functions (e.g., accuracy calc)
+├── config.py                # Configuration (DB URI, secrets, etc)
+└── database.db              # SQLite DB file (if using SQLite)
+
+app.py
+
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from models import db, User, Lesson, Progress
+from config import Config
+import os
+
+app = Flask(__name__)
+app.config.from_object(Config)
+
+db.init_app(app)
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+# Initialize DB and lessons once at startup
+with app.app_context():
+    db.create_all()
+    if Lesson.query.count() == 0:
+        for i in range(1, 22):
+            try:
+                with open(f'lessons/lesson{i}.txt', 'r') as f:
+                    content = f.read().strip()
+                lesson = Lesson(number=i, content=content, title=f"Lesson {i}")
+                db.session.add(lesson)
+            except FileNotFoundError:
+                print(f"Warning: lessons/lesson{i}.txt not found")
+        db.session.commit()
+
+@app.route('/')
+def index():
+    lessons = Lesson.query.order_by(Lesson.number).all()
+    return render_template('index.html', lessons=lessons)
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        if User.query.filter_by(username=username).first():
+            flash("Username already exists.")
+            return redirect(url_for('register'))
+        user = User(username=username, password=password)
+        db.session.add(user)
+        db.session.commit()
+        flash("Account created successfully!")
+        return redirect(url_for('login'))
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        user = User.query.filter_by(username=username).first()
+        if user and user.password == password:
+            login_user(user)
+            return redirect(url_for('index'))
+        else:
+            flash("Invalid username or password.")
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('index'))
+
+@app.route('/lesson/<int:lesson_id>')
+def practice(lesson_id):
+    lesson = Lesson.query.filter_by(id=lesson_id).first_or_404()
+
+    # Allow guest access only for lesson 1
+    if lesson_id != 1 and not current_user.is_authenticated:
+        return redirect(url_for('login'))
+
+    return render_template('practice.html', lesson=lesson)
+
+@app.route('/save_progress/<int:lesson_id>', methods=['POST'])
+@login_required
+def save_progress(lesson_id):
+    data = request.json
+    wpm = data.get('wpm', 0)
+    accuracy = data.get('accuracy', 0)
+
+    progress = Progress.query.filter_by(user_id=current_user.id, lesson_id=lesson_id).first()
+    if not progress:
+        progress = Progress(user_id=current_user.id, lesson_id=lesson_id)
+    progress.wpm = wpm
+    progress.accuracy = accuracy
+
+    db.session.add(progress)
+    db.session.commit()
+
+    return jsonify({"status": "saved"})
+
+@app.route('/progress')
+@login_required
+def progress():
+    records = Progress.query.filter_by(user_id=current_user.id).order_by(Progress.timestamp.desc()).all()
+    lessons = {l.id: l for l in Lesson.query.all()}
+    return render_template('progress.html', records=records, lessons=lessons)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+config.py
+
+import os
+
+class Config:
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'you-should-change-this-in-production'
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///database.db'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+models.py
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin
+from datetime import datetime
+
+db = SQLAlchemy()
+
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(150), unique=True, nullable=False)
+    password = db.Column(db.String(150), nullable=False)
+    progress = db.relationship('Progress', backref='user', lazy=True)
+
+class Lesson(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    number = db.Column(db.Integer, unique=True, nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    title = db.Column(db.String(100), default="Lesson")
+
+class Progress(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    lesson_id = db.Column(db.Integer, db.ForeignKey('lesson.id'), nullable=False)
+    wpm = db.Column(db.Float, default=0.0)
+    accuracy = db.Column(db.Float, default=0.0)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+utils.py
+def calculate_wpm(text, time_seconds):
+    words = len(text.split())
+    minutes = time_seconds / 60
+    return round(words / minutes, 2) if minutes > 0 else 0
+
+def calculate_accuracy(original, typed):
+    if len(original) == 0:
+        return 100.0
+    correct = sum(1 for a, b in zip(original, typed) if a == b)
+    return round((correct / len(original)) * 100, 2)
+
+def format_time(seconds):
+    """Format seconds into MM:SS format"""
+    minutes = seconds // 60
+    seconds = seconds % 60
+    return f"{minutes:02d}:{seconds:02d}"
+
+def calculate_grade(wpm, accuracy):
+    """Calculate a grade based on WPM and accuracy"""
+    if accuracy < 80:
+        return "Needs Practice"
+    elif wpm < 20:
+        return "Beginner"
+    elif wpm < 40:
+        return "Intermediate"
+    elif wpm < 60:
+        return "Advanced"
+    else:
+        return "Expert"
+
+base.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Typing Tutor</title>
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+
+  <!-- jQuery & Virtual Keyboard (CDN) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/virtual-keyboard/1.30.1/css/keyboard.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/virtual-keyboard/1.30.1/js/jquery.keyboard.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/virtual-keyboard/1.30.1/js/jquery.mousewheel.min.js"></script>
+
+  <script>
+    // Apply dark mode
+    document.addEventListener('DOMContentLoaded', () => {
+      if (localStorage.getItem('darkMode') === 'enabled' ||
+          (!localStorage.getItem('darkMode') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.body.classList.add('dark');
+      }
+    });
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>⌨️ Typing Tutor</h1>
+      <div>
+        {% if current_user.is_authenticated %}
+          <span>Welcome, {{ current_user.username }}!</span>
+          <a href="{{ url_for('index') }}" class="btn">Home</a>
+          <a href="{{ url_for('progress') }}" class="btn">Progress</a>
+          <a href="{{ url_for('logout') }}" class="btn">Logout</a>
+        {% else %}
+          <a href="{{ url_for('login') }}" class="btn">Login</a>
+          <a href="{{ url_for('register') }}" class="btn">Register</a>
+        {% endif %}
+        <button class="theme-toggle" id="themeToggle">🌙 / ☀️</button>
+      </div>
+    </header>
+
+    <main>
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}
+          <ul class="flashes">
+            {% for message in messages %}
+              <li>{{ message }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <footer>
+    <p>© 2025 Typing Tutor. Practice makes perfect.</p>
+  </footer>
+
+  <!-- Load custom JS after jQuery -->
+  <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+</body>
+</html>
+
+index.html
+{% extends "base.html" %}
+{% block content %}
+<div style="text-align: center; margin-bottom: 40px;">
+  <h2 style="font-size: 2.2rem; color: #2d3748; margin-bottom: 12px;">Welcome, {{ current_user.username or "Student" }}!</h2>
+  <p style="color: #666; font-size: 1.1rem;">Improve your typing speed and accuracy with structured lessons.</p>
+</div>
+
+<div class="lesson-grid">
+  {% for lesson in lessons %}
+  <a href="{{ url_for('practice', lesson_id=lesson.id) }}" class="lesson-card">
+    <strong>{{ lesson.title }}</strong>
+    <p>{{ lesson.content | truncate(80) }}</p>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}
+
+login.html
+{% extends "base.html" %}
+{% block content %}
+<h2 style="text-align: center; margin-bottom: 20px;">🔐 Login</h2>
+<form method="POST" style="max-width: 400px; margin: 0 auto;">
+  <input type="text" name="username" placeholder="Username" required
+         style="width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem;" />
+  <input type="password" name="password" placeholder="Password" required
+         style="width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem;" />
+  <button type="submit" class="btn primary" style="width: 100%;">Login</button>
+</form>
+<p style="text-align: center; margin-top: 15px;">
+  Don't have an account? <a href="{{ url_for('register') }}">Register here</a>.
+</p>
+{% endblock %}
+
+practice.html
+{% extends "base.html" %}
+{% block content %}
+<div class="practice-container">
+  <div class="lesson-header">
+    <h2>{{ lesson.title }}</h2>
+    <a href="{{ url_for('index') }}" class="btn back-btn">← Back to Lessons</a>
+  </div>
+
+  <div id="stats">
+    <div class="stat">
+      <span class="stat-label">Time</span>
+      <span id="time">0</span>s
+    </div>
+    <div class="stat">
+      <span class="stat-label">WPM</span>
+      <span id="wpm">0</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Accuracy</span>
+      <span id="accuracy">0</span>%
+    </div>
+    <div class="stat">
+      <span class="stat-label">Errors</span>
+      <span id="errors">0</span>
+    </div>
+  </div>
+
+  <div id="text-display">{{ lesson.content }}</div>
+
+  <textarea 
+    id="input-area" 
+    placeholder="Start typing here..." 
+    autocomplete="off" 
+    autocorrect="off" 
+    autocapitalize="off" 
+    spellcheck="false"
+  ></textarea>
+
+  <div class="keyboard-container">
+    <div class="keyboard" id="keyboard">
+      <!-- Keyboard will be generated by JavaScript -->
+    </div>
+  </div>
+
+  <div class="practice-controls">
+    <button id="reset-btn" class="btn secondary">Restart</button>
+    <button id="toggle-keyboard" class="btn secondary">Hide Keyboard</button>
+  </div>
+</div>
+
+<script>
+  // Pass data to JavaScript
+  window.lessonId = {{ lesson.id }};
+  window.lessonText = `{{ lesson.content }}`;
+  window.currentUserAuthenticated = {{ current_user.is_authenticated|lower }};
+</script>
+{% endblock %}
+
+progress.html
+{% extends "base.html" %}
+{% block content %}
+<div class="progress-container">
+  <h2>Your Progress</h2>
+  
+  {% if records %}
+  <div class="stats-summary">
+    <div class="stat-card">
+      <h3>Average WPM</h3>
+      <p>{{ "%.1f"|format(records|map(attribute='wpm')|sum / records|length }}</p>
+    </div>
+    <div class="stat-card">
+      <h3>Average Accuracy</h3>
+      <p>{{ "%.1f"|format(records|map(attribute='accuracy')|sum / records|length )}}%</p>
+    </div>
+    <div class="stat-card">
+      <h3>Lessons Completed</h3>
+      <p>{{ records|length }}</p>
+    </div>
+  </div>
+  
+  <div class="progress-table">
+    <table>
+      <thead>
+        <tr>
+          <th>Lesson</th>
+          <th>WPM</th>
+          <th>Accuracy</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for record in records %}
+        <tr>
+          <td>{{ lessons[record.lesson_id].title }}</td>
+          <td>{{ record.wpm }}</td>
+          <td>{{ record.accuracy }}%</td>
+          <td>{{ record.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="no-progress">
+    <p>You haven't completed any lessons yet. <a href="{{ url_for('index') }}">Start practicing!</a></p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+register.html
+{% extends "base.html" %}
+{% block content %}
+<h2 style="text-align: center; margin-bottom: 20px;">📝 Register</h2>
+<form method="POST" style="max-width: 400px; margin: 0 auto;">
+  <input type="text" name="username" placeholder="Username" required
+         style="width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem;" />
+  <input type="password" name="password" placeholder="Password" required
+         style="width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem;" />
+  <button type="submit" class="btn primary" style="width: 100%;">Register</button>
+</form>
+<p style="text-align: center; margin-top: 15px;">
+  Already have an account? <a href="{{ url_for('login') }}">Login here</a>.
+</p>
+{% endblock %}
+
+styles.css
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { 
+  font-family: 'Inter', sans-serif; 
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%); 
+  color: #1a1f2c; 
+  line-height: 1.6; 
+  min-height: 100vh; 
+  transition: background 0.4s ease; 
+}
+body.dark { 
+  background: linear-gradient(135deg, #12121a 0%, #1e202c 100%); 
+  color: #e0e0e0; 
+}
+.container { 
+  max-width: 900px; 
+  margin: 0 auto; 
+  padding: 20px; 
+}
+
+header { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  padding: 20px 0; 
+  border-bottom: 1px solid #e0e0e0; 
+  margin-bottom: 30px; 
+}
+body.dark header { 
+  border-color: #333; 
+}
+header h1 { 
+  font-size: 1.8rem; 
+  font-weight: 700; 
+  background: linear-gradient(90deg, #4a6cf7, #6a8dff); 
+  -webkit-background-clip: text; 
+  -webkit-text-fill-color: transparent; 
+  display: flex; 
+  align-items: center; 
+  gap: 8px; 
+}
+
+nav a, .btn { 
+  text-decoration: none; 
+  padding: 8px 16px; 
+  border-radius: 8px; 
+  font-size: 0.95rem; 
+  font-weight: 500; 
+  transition: all 0.3s ease; 
+  color: #4a6cf7; 
+}
+nav a:hover, .btn:hover { 
+  background: #4a6cf7; 
+  color: white; 
+}
+.btn.primary { 
+  background: #4a6cf7; 
+  color: white; 
+}
+.btn.primary:hover { 
+  background: #3a5bf0; 
+}
+
+.flashes li { 
+  padding: 12px; 
+  margin: 10px 0; 
+  background: #ffebee; 
+  color: #c62828; 
+  border-radius: 8px; 
+  border-left: 4px solid #ef5350; 
+}
+body.dark .flashes li { 
+  background: #381a1c; 
+  color: #ef9a9a; 
+}
+
+.lesson-grid { 
+  display: grid; 
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
+  gap: 20px; 
+  margin-top: 20px; 
+}
+.lesson-card { 
+  background: white; 
+  border-radius: 12px; 
+  padding: 20px; 
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+  transition: transform 0.3s ease, box-shadow 0.3s ease; 
+  text-decoration: none; 
+  color: #1a1f2c; 
+}
+body.dark .lesson-card { 
+  background: #242937; 
+  color: #e0e0e0; 
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3); 
+}
+.lesson-card:hover { 
+  transform: translateY(-5px); 
+  box-shadow: 0 8px 20px rgba(74,108,247,0.15); 
+}
+.lesson-card strong { 
+  font-size: 1.2rem; 
+  color: #4a6cf7; 
+  display: block; 
+  margin-bottom: 8px; 
+}
+
+#text-display { 
+  font-size: 1.2rem; 
+  line-height: 1.8; 
+  padding: 24px; 
+  background: white; 
+  border-radius: 12px; 
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05); 
+  margin-bottom: 16px; 
+  white-space: pre-wrap; 
+  border: 1px solid #eee; 
+}
+body.dark #text-display { 
+  background: #2a2f3d; 
+  border-color: #3a4050; 
+  color: #e0e0e0; 
+}
+
+#input-area { 
+  width: 100%; 
+  height: 120px; 
+  font-size: 1.1rem; 
+  padding: 16px; 
+  border: 2px solid #4a6cf7; 
+  border-radius: 12px; 
+  outline: none; 
+  resize: none; 
+  font-family: 'Fira Code', monospace; 
+  transition: border-color 0.3s ease; 
+}
+#input-area:focus { 
+  border-color: #3a5bf0; 
+  box-shadow: 0 0 0 3px rgba(74,108,247,0.2); 
+}
+
+#stats { 
+  display: flex; 
+  justify-content: space-around; 
+  background: white; 
+  padding: 16px; 
+  border-radius: 12px; 
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05); 
+  margin-bottom: 20px; 
+  font-size: 1rem; 
+  font-weight: 600; 
+  color: #2d3748; 
+}
+body.dark #stats { 
+  background: #242937; 
+  color: #e0e0e0; 
+}
+#stats span { 
+  color: #4a6cf7; 
+  font-size: 1.2rem; 
+}
+
+table { 
+  width: 100%; 
+  border-collapse: collapse; 
+  margin-top: 20px; 
+  background: white; 
+  border-radius: 12px; 
+  overflow: hidden; 
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+}
+body.dark table { 
+  background: #242937; 
+}
+th, td { 
+  padding: 14px; 
+  text-align: left; 
+  border-bottom: 1px solid #eee; 
+}
+body.dark th, body.dark td { 
+  border-color: #3a4050; 
+}
+th { 
+  background: #f7f9fc; 
+  color: #333; 
+  font-weight: 600; 
+}
+body.dark th { 
+  background: #2a2f3d; 
+  color: #e0e0e0; 
+}
+tr:hover { 
+  background: #f0f4ff; 
+}
+body.dark tr:hover { 
+  background: #2d3446; 
+}
+
+.theme-toggle { 
+  background: #f0f0f0; 
+  border: 1px solid #ddd; 
+  cursor: pointer; 
+  padding: 6px 10px; 
+  border-radius: 20px; 
+  font-size: 0.85rem; 
+  color: #555; 
+}
+body.dark .theme-toggle { 
+  background: #333; 
+  color: #aaa; 
+  border-color: #555; 
+}
+
+footer { 
+  text-align: center; 
+  margin-top: 60px; 
+  color: #666; 
+  font-size: 0.9rem; 
+}
+body.dark footer { 
+  color: #aaa; 
+}
+
+#input-area, #text-display { 
+  font-family: 'Fira Code', monospace; 
+}
+
+/* Virtual Keyboard Custom Styling */
+.ui-keyboard {
+  background: #1a1d2b !important;
+  border: 1px solid #333 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
+  font-family: 'Inter', sans-serif !important;
+  padding: 10px !important;
+}
+
+.ui-keyboard .ui-keyboard-button {
+  background: #2a2e42 !important;
+  color: #e4e4e4 !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.4) !important;
+  transition: all 0.2s ease !important;
+  font-size: 0.9rem !important;
+}
+
+.ui-keyboard .ui-keyboard-button:hover {
+  background: #3a3f58 !important;
+}
+
+.ui-keyboard .ui-keyboard-spacebar {
+  width: 260px !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .ui-keyboard {
+    transform: scale(0.9);
+    transform-origin: top center;
+  }
+}
+
+@media (max-width: 480px) {
+  .ui-keyboard {
+    transform: scale(0.75);
+  }
+}
+
+/* Modern Keyboard Styles */
+.keyboard-container {
+  margin-top: 20px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 15px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+body.dark .keyboard-container {
+  background: rgba(35, 35, 50, 0.7);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.keyboard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  user-select: none;
+}
+
+.keyboard-row {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.keyboard-key {
+  min-width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid #eee;
+}
+
+body.dark .keyboard-key {
+  background: #2a2e42;
+  color: #e4e4e4;
+  border-color: #3a3f58;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.keyboard-key:hover {
+  background: #f0f4ff;
+  transform: translateY(-2px);
+}
+
+body.dark .keyboard-key:hover {
+  background: #3a3f58;
+}
+
+.keyboard-key:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.key-wide {
+  min-width: 70px;
+}
+
+.key-extra-wide {
+  min-width: 200px;
+}
+
+.next-key {
+  background: #4f46e5 !important;
+  color: white !important;
+  box-shadow: 0 0 12px rgba(79, 70, 229, 0.8) !important;
+}
+
+.keyboard.hidden {
+  display: none;
+}
+
+/* Text display with character highlighting */
+.correct {
+  color: #10b981;
+  background-color: rgba(16, 185, 129, 0.1);
+}
+
+.incorrect {
+  color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.1);
+  text-decoration: line-through;
+}
+
+.next-char {
+  background-color: rgba(79, 70, 229, 0.2);
+  border-bottom: 2px solid #4f46e5;
+}
+
+/* Practice page layout */
+.practice-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.lesson-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.practice-controls {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  justify-content: center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .keyboard-key {
+    min-width: 36px;
+    height: 36px;
+    font-size: 0.9rem;
+  }
+  
+  .key-wide {
+    min-width: 50px;
+  }
+  
+  .key-extra-wide {
+    min-width: 150px;
+  }
+  
+  .keyboard-container {
+    padding: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .keyboard-key {
+    min-width: 30px;
+    height: 30px;
+    font-size: 0.8rem;
+  }
+  
+  .key-wide {
+    min-width: 40px;
+  }
+  
+  .key-extra-wide {
+    min-width: 120px;
+  }
+  
+  .lesson-header {
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+}
+
+
+
+scripts.js
+// Dark Mode Toggle
+document.addEventListener('DOMContentLoaded', () => {
+  const themeToggle = document.getElementById('themeToggle');
+  if (themeToggle) {
+    themeToggle.addEventListener('click', () => {
+      document.body.classList.toggle('dark');
+      localStorage.setItem('darkMode', document.body.classList.contains('dark') ? 'enabled' : 'disabled');
+    });
+  }
+
+  // Initialize typing practice if on practice page
+  if (document.getElementById('input-area')) {
+    initTypingPractice();
+  }
+});
+
+// Modern Keyboard Implementation
+function initTypingPractice() {
+  const displayText = window.lessonText;
+  const $input = document.getElementById('input-area');
+  const $display = document.getElementById('text-display');
+  const $timeEl = document.getElementById('time');
+  const $wpmEl = document.getElementById('wpm');
+  const $accuracyEl = document.getElementById('accuracy');
+  const $errorsEl = document.getElementById('errors');
+  const $resetBtn = document.getElementById('reset-btn');
+  const $toggleKeyboardBtn = document.getElementById('toggle-keyboard');
+  const $keyboard = document.getElementById('keyboard');
+
+  let startTime;
+  let typingStarted = false;
+  let timerInterval = null;
+  let errorCount = 0;
+  let currentIndex = 0;
+  
+  // Create the virtual keyboard
+  createVirtualKeyboard();
+  
+  // Initialize text display with highlighting
+  updateTextDisplay();
+
+  // Focus input
+  $input.focus();
+
+  // Event listeners
+  $input.addEventListener('input', handleInput);
+  $resetBtn.addEventListener('click', resetPractice);
+  $toggleKeyboardBtn.addEventListener('click', toggleKeyboard);
+
+  function startTimer() {
+    if (typingStarted) return;
+    startTime = Date.now();
+    typingStarted = true;
+
+    timerInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      $timeEl.textContent = elapsed;
+      
+      const typed = $input.value;
+      const wpm = calculateWPM(typed, elapsed);
+      const accuracy = calculateAccuracy(displayText, typed);
+      
+      $wpmEl.textContent = wpm;
+      $accuracyEl.textContent = accuracy;
+    }, 500);
+  }
+
+  function stopTimer() {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+
+  function calculateWPM(text, seconds) {
+    const words = text.trim().split(/\s+/).length;
+    const minutes = seconds / 60;
+    return Math.round((words / minutes) || 0);
+  }
+
+  function calculateAccuracy(original, typed) {
+    if (typed.length === 0) return 0;
+    const correct = [...typed].filter((char, i) => char === original[i]).length;
+    return Math.round((correct / typed.length) * 100);
+  }
+
+  function handleInput() {
+    const typed = $input.value;
+    currentIndex = typed.length;
+
+    if (!typingStarted && typed.length > 0) {
+      startTimer();
+    }
+
+    // Update text display with highlighting
+    updateTextDisplay();
+
+    // Check for errors
+    if (typed.length > 0) {
+      const lastChar = typed[typed.length - 1];
+      const expectedChar = displayText[typed.length - 1];
+      
+      if (lastChar !== expectedChar) {
+        errorCount++;
+        $errorsEl.textContent = errorCount;
+      }
+    }
+
+    // Highlight next key on virtual keyboard
+    highlightNextKey();
+
+    // Check completion
+    if (typed === displayText) {
+      stopTimer();
+      
+      // Save progress (if not guest on lesson 1)
+      if (window.lessonId !== 1 && window.currentUserAuthenticated) {
+        const wpm = parseInt($wpmEl.textContent) || 0;
+        const accuracy = parseFloat($accuracyEl.textContent) || 0;
+        
+        fetch(`/save_progress/${window.lessonId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ wpm, accuracy })
+        });
+      }
+
+      setTimeout(() => {
+        alert("✅ Lesson completed! Great job!");
+      }, 100);
+    }
+  }
+
+  function updateTextDisplay() {
+    const typed = $input.value;
+    let html = '';
+    
+    for (let i = 0; i < displayText.length; i++) {
+      if (i < typed.length) {
+        if (typed[i] === displayText[i]) {
+          html += `<span class="correct">${displayText[i]}</span>`;
+        } else {
+          html += `<span class="incorrect">${displayText[i]}</span>`;
+        }
+      } else if (i === typed.length) {
+        html += `<span class="next-char">${displayText[i]}</span>`;
+      } else {
+        html += displayText[i];
+      }
+    }
+    
+    $display.innerHTML = html;
+  }
+
+  function resetPractice() {
+    $input.value = '';
+    errorCount = 0;
+    currentIndex = 0;
+    typingStarted = false;
+    
+    $timeEl.textContent = '0';
+    $wpmEl.textContent = '0';
+    $accuracyEl.textContent = '0';
+    $errorsEl.textContent = '0';
+    
+    stopTimer();
+    updateTextDisplay();
+    highlightNextKey();
+    $input.focus();
+  }
+
+  function toggleKeyboard() {
+    $keyboard.classList.toggle('hidden');
+    $toggleKeyboardBtn.textContent = $keyboard.classList.contains('hidden') ? 
+      'Show Keyboard' : 'Hide Keyboard';
+  }
+
+  function createVirtualKeyboard() {
+    const keyboardLayout = [
+      ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'backspace'],
+      ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+      ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'enter'],
+      ['shift', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '?'],
+      ['space']
+    ];
+
+    let keyboardHTML = '';
+    
+    keyboardLayout.forEach(row => {
+      keyboardHTML += '<div class="keyboard-row">';
+      
+      row.forEach(key => {
+        let keyClass = 'keyboard-key';
+        let keyContent = key;
+        
+        if (key === 'backspace') {
+          keyClass += ' key-wide';
+          keyContent = '⌫';
+        } else if (key === 'enter') {
+          keyClass += ' key-wide';
+          keyContent = '↲';
+        } else if (key === 'shift') {
+          keyClass += ' key-wide';
+          keyContent = '⇧';
+        } else if (key === 'space') {
+          keyClass += ' key-extra-wide';
+          keyContent = ' ';
+        }
+        
+        keyboardHTML += `<div class="${keyClass}" data-key="${key}">${keyContent}</div>`;
+      });
+      
+      keyboardHTML += '</div>';
+    });
+    
+    $keyboard.innerHTML = keyboardHTML;
+    
+    // Add click events to keyboard keys
+    const keys = $keyboard.querySelectorAll('.keyboard-key');
+    keys.forEach(key => {
+      key.addEventListener('click', () => {
+        const keyValue = key.getAttribute('data-key');
+        handleVirtualKeyPress(keyValue);
+      });
+    });
+  }
+
+  function handleVirtualKeyPress(key) {
+    const $input = document.getElementById('input-area');
+    let currentValue = $input.value;
+    
+    switch(key) {
+      case 'backspace':
+        $input.value = currentValue.slice(0, -1);
+        break;
+      case 'enter':
+        $input.value += '\n';
+        break;
+      case 'space':
+        $input.value += ' ';
+        break;
+      case 'shift':
+        // Toggle shift state (not implemented in this basic version)
+        break;
+      default:
+        $input.value += key;
+    }
+    
+    // Trigger input event
+    const event = new Event('input', { bubbles: true });
+    $input.dispatchEvent(event);
+    
+    // Keep focus on input
+    $input.focus();
+  }
+
+  function highlightNextKey() {
+    // Remove previous highlights
+    const keys = document.querySelectorAll('.keyboard-key');
+    keys.forEach(key => key.classList.remove('next-key'));
+    
+    // Highlight next key if available
+    if (currentIndex < displayText.length) {
+      const nextChar = displayText[currentIndex].toLowerCase();
+      
+      if (nextChar === ' ') {
+        const spaceKey = document.querySelector('[data-key="space"]');
+        if (spaceKey) spaceKey.classList.add('next-key');
+      } else {
+        const keyElement = document.querySelector(`[data-key="${nextChar}"]`);
+        if (keyElement) keyElement.classList.add('next-key');
+      }
+    }
+  }
+}
+
+database.db - currently empty
