@@ -21,7 +21,7 @@ app.secret_key = os.environ.get("SESSION_SECRET", "you-should-change-this-in-pro
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Configure the database
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///database.db")
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///typing_tutor.db")
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
@@ -34,7 +34,7 @@ db.init_app(app)
 # Initialize Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'login'
+login_manager.login_view = 'login'  # type: ignore
 
 # Import models after db initialization
 from models import User, Lesson, Progress, Achievement
@@ -53,7 +53,10 @@ with app.app_context():
             try:
                 with open(f'lessons/lesson{i}.txt', 'r') as f:
                     content = f.read().strip()
-                lesson = Lesson(number=i, content=content, title=f"Lesson {i}")
+                lesson = Lesson()
+                lesson.number = i
+                lesson.content = content
+                lesson.title = f"Lesson {i}"
                 db.session.add(lesson)
                 logging.info(f"Added lesson {i}")
             except FileNotFoundError:
@@ -91,15 +94,21 @@ def index():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form['username']
+        email = request.form['email']
+        first_name = request.form['first_name']
+        last_name = request.form['last_name']
         password = request.form['password']
         
-        if User.query.filter_by(username=username).first():
-            flash("Username already exists.", "error")
+        if User.query.filter_by(email=email).first():
+            flash("Email already exists.", "error")
             return redirect(url_for('register'))
         
         password_hash = generate_password_hash(password)
-        user = User(username=username, password_hash=password_hash)
+        user = User()
+        user.email = email
+        user.first_name = first_name
+        user.last_name = last_name
+        user.password_hash = password_hash
         db.session.add(user)
         db.session.commit()
         
@@ -111,15 +120,15 @@ def register():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
+        email = request.form['email']
         password = request.form['password']
         
-        user = User.query.filter_by(username=username).first()
+        user = User.query.filter_by(email=email).first()
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
             return redirect(url_for('index'))
         else:
-            flash("Invalid username or password.", "error")
+            flash("Invalid email or password.", "error")
     
     return render_template('login.html')
 
@@ -162,7 +171,7 @@ def practice(lesson_id):
 @app.route('/save_progress/<int:lesson_id>', methods=['POST'])
 @login_required
 def save_progress(lesson_id):
-    data = request.json
+    data = request.json or {}
     wpm = data.get('wpm', 0)
     accuracy = data.get('accuracy', 0)
     time_taken = data.get('time_taken', 0)
@@ -171,7 +180,9 @@ def save_progress(lesson_id):
     # Find existing progress or create new
     progress = Progress.query.filter_by(user_id=current_user.id, lesson_id=lesson_id).first()
     if not progress:
-        progress = Progress(user_id=current_user.id, lesson_id=lesson_id)
+        progress = Progress()
+        progress.user_id = current_user.id
+        progress.lesson_id = lesson_id
     
     # Update progress only if this attempt is better
     if wpm > progress.wpm or (wpm == progress.wpm and accuracy > progress.accuracy):

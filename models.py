@@ -4,7 +4,9 @@ from datetime import datetime
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(64), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    first_name = db.Column(db.String(64), nullable=False)
+    last_name = db.Column(db.String(64), nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     progress = db.relationship('Progress', backref='user', lazy=True)
