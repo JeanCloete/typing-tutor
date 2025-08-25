@@ -130,6 +130,17 @@ class TypingPractice {
             }
         }
         
+        // Use requestAnimationFrame for smoother updates
+        if (!this.updatePending) {
+            this.updatePending = true;
+            requestAnimationFrame(() => {
+                this.updateDisplay(inputLength);
+                this.updatePending = false;
+            });
+        }
+    }
+    
+    updateDisplay(inputLength) {
         this.currentIndex = inputLength;
         this.renderText();
         this.updateStats();
@@ -285,15 +296,57 @@ class TypingPractice {
     
     renderText() {
         const inputValue = this.inputArea.value;
-        let html = '';
         
+        // Only update if we haven't cached the base HTML or if it's a fresh start
+        if (!this.cachedTextHTML) {
+            this.cacheTextHTML();
+        }
+        
+        // Update only changed characters for better performance
+        this.updateTextClasses(inputValue);
+        
+        // Update progress bar using transform for better performance
+        const progress = (inputValue.length / this.lessonText.length) * 100;
+        const progressFill = document.getElementById('progressFill');
+        if (progressFill) {
+            progressFill.style.transform = `scaleX(${progress / 100})`;
+        }
+    }
+    
+    cacheTextHTML() {
+        let html = '';
         for (let i = 0; i < this.lessonText.length; i++) {
             const char = this.lessonText[i];
+            const id = `char-${i}`;
+            
+            if (char === ' ') {
+                html += `<span id="${id}" class="">&nbsp;</span>`;
+            } else if (char === '\n') {
+                html += `<span id="${id}" class="">¶</span><br>`;
+            } else {
+                html += `<span id="${id}" class="">${this.escapeHtml(char)}</span>`;
+            }
+        }
+        
+        this.textDisplay.innerHTML = html;
+        this.cachedTextHTML = true;
+        this.charElements = Array.from(this.textDisplay.querySelectorAll('span[id^="char-"]'));
+    }
+    
+    updateTextClasses(inputValue) {
+        // Update classes only for visible range to improve performance
+        const startIndex = Math.max(0, this.currentIndex - 50);
+        const endIndex = Math.min(this.lessonText.length, this.currentIndex + 50);
+        
+        for (let i = startIndex; i < endIndex; i++) {
+            const element = this.charElements[i];
+            if (!element) continue;
+            
             let className = '';
             
             if (i < inputValue.length) {
                 // Character has been typed
-                if (inputValue[i] === char) {
+                if (inputValue[i] === this.lessonText[i]) {
                     className = 'correct';
                 } else {
                     className = 'incorrect';
@@ -303,22 +356,10 @@ class TypingPractice {
                 className = 'current';
             }
             
-            if (char === ' ') {
-                html += `<span class="${className}">&nbsp;</span>`;
-            } else if (char === '\n') {
-                html += `<span class="${className}">¶</span><br>`;
-            } else {
-                html += `<span class="${className}">${this.escapeHtml(char)}</span>`;
+            // Only update if class changed
+            if (element.className !== className) {
+                element.className = className;
             }
-        }
-        
-        this.textDisplay.innerHTML = html;
-        
-        // Update progress bar
-        const progress = (inputValue.length / this.lessonText.length) * 100;
-        const progressFill = document.getElementById('progressFill');
-        if (progressFill) {
-            progressFill.style.width = `${progress}%`;
         }
     }
     
@@ -330,6 +371,12 @@ class TypingPractice {
     }
     
     updateStats() {
+        // Throttle stats updates to reduce DOM manipulation
+        if (this.lastStatsUpdate && Date.now() - this.lastStatsUpdate < 200) {
+            return;
+        }
+        this.lastStatsUpdate = Date.now();
+        
         const inputValue = this.inputArea.value;
         const timeInMinutes = this.timeElapsed / 60;
         
@@ -347,10 +394,19 @@ class TypingPractice {
         }
         const accuracy = inputValue.length > 0 ? Math.round((correctChars / inputValue.length) * 100) : 100;
         
-        // Update display
-        if (this.statsElements.wpm) this.statsElements.wpm.textContent = wpm;
-        if (this.statsElements.accuracy) this.statsElements.accuracy.textContent = accuracy;
-        if (this.statsElements.errors) this.statsElements.errors.textContent = this.errors;
+        // Update display only if values changed
+        if (this.statsElements.wpm && this.lastWpm !== wpm) {
+            this.statsElements.wpm.textContent = wpm;
+            this.lastWpm = wpm;
+        }
+        if (this.statsElements.accuracy && this.lastAccuracy !== accuracy) {
+            this.statsElements.accuracy.textContent = accuracy;
+            this.lastAccuracy = accuracy;
+        }
+        if (this.statsElements.errors && this.lastErrors !== this.errors) {
+            this.statsElements.errors.textContent = this.errors;
+            this.lastErrors = this.errors;
+        }
     }
     
     updateTimeDisplay() {

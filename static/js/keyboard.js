@@ -140,6 +140,9 @@ class VirtualKeyboard {
             
             // Show finger position hint
             this.showFingerHint(keyElement);
+            
+            // Update finger indicator
+            this.updateFingerIndicator(char, keyElement);
         }
     }
     
@@ -156,6 +159,37 @@ class VirtualKeyboard {
             if (fingerLegend) {
                 fingerLegend.classList.add('finger-hint');
             }
+        }
+    }
+    
+    updateFingerIndicator(char, keyElement) {
+        const fingerIndicator = document.getElementById('fingerIndicator');
+        if (!fingerIndicator) return;
+        
+        const finger = keyElement.getAttribute('data-finger');
+        const fingerNames = {
+            'pinky-left': 'Left Pinky',
+            'ring-left': 'Left Ring Finger', 
+            'middle-left': 'Left Middle Finger',
+            'index-left': 'Left Index Finger',
+            'thumb': 'Thumbs',
+            'index-right': 'Right Index Finger',
+            'middle-right': 'Right Middle Finger',
+            'ring-right': 'Right Ring Finger',
+            'pinky-right': 'Right Pinky'
+        };
+        
+        if (finger && fingerNames[finger]) {
+            const displayChar = char === ' ' ? 'SPACE' : char.toUpperCase();
+            fingerIndicator.textContent = `Use your ${fingerNames[finger]} to press "${displayChar}"`;
+            fingerIndicator.classList.add('highlight');
+            
+            // Remove highlight after short delay to reduce performance impact
+            setTimeout(() => {
+                fingerIndicator.classList.remove('highlight');
+            }, 300);
+        } else {
+            fingerIndicator.textContent = `Press "${char}"`;
         }
     }
     

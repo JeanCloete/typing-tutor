@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+
+{% block title %}Learn Touch Typing - Professional Typing Tutor{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero-section">
+    <div class="hero-content">
+        <h1 class="hero-title">Master Touch Typing in 23 Lessons</h1>
+        <div class="live-typing" id="typingDemo"></div>
+        <p class="hero-subtitle">
+            Learn to type faster, more accurately, and without looking at the keyboard — 
+            using proven techniques used by professionals.
+        </p>
+        <div class="hero-actions">
+            <a href="{{ url_for('index') }}" class="btn btn-primary btn-large btn-xl">
+                <i class="fas fa-play-circle"></i>
+                Start Typing Lessons
+            </a>
+            <a href="#typing-basics" class="btn btn-outline btn-large">
+                <i class="fas fa-book"></i>
+                Learn Touch Typing
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Educational Content -->
+<div class="section-container" id="typing-basics">
+    <div class="section-header">
+        <h2>What is Touch Typing?</h2>
+        <p>
+            Touch typing is a method of typing without using the sense of sight to find the keys. 
+            Instead, you rely on muscle memory, proper finger placement, and consistent practice.
+        </p>
+    </div>
+
+    <div class="info-grid">
+        <div class="info-card">
+            <div class="info-icon">
+                <i class="fas fa-hands"></i>
+            </div>
+            <h3>Finger Placement</h3>
+            <p>
+                Your fingers rest on the "home row": <strong>ASDF</strong> (left hand) and <strong>JKL;</strong> (right hand). 
+                This is the foundation of all touch typing.
+            </p>
+        </div>
+
+        <div class="info-card">
+            <div class="info-icon">
+                <i class="fas fa-bullseye"></i>
+            </div>
+            <h3>Accuracy First</h3>
+            <p>
+                Speed comes with time. Focus on typing correctly first — accuracy builds confidence and reduces errors.
+            </p>
+        </div>
+
+        <div class="info-card">
+            <div class="info-icon">
+                <i class="fas fa-tachometer-alt"></i>
+            </div>
+            <h3>Build Speed Gradually</h3>
+            <p>
+                As your accuracy improves, your WPM (Words Per Minute) will naturally increase. 
+                Our lessons guide you step by step.
+            </p>
+        </div>
+
+        <div class="info-card">
+            <div class="info-icon">
+                <i class="fas fa-brain"></i>
+            </div>
+            <h3>Muscle Memory</h3>
+            <p>
+                With consistent practice, your fingers will "remember" where each key is — 
+                no more hunting and pecking!
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Home Row Demo -->
+<div class="section-container">
+    <div class="section-header">
+        <h2>Your Home Row: The Foundation</h2>
+        <p>
+            Place your fingers here at the start of every typing session.
+        </p>
+    </div>
+
+    <div class="keyboard-demo">
+        <div class="keyboard-row">
+            <div class="key">A</div>
+            <div class="key">S</div>
+            <div class="key">D</div>
+            <div class="key home-key">F</div>
+            <div class="spacer"></div>
+            <div class="key home-key">J</div>
+            <div class="key">K</div>
+            <div class="key">L</div>
+            <div class="key">;</div>
+        </div>
+        <div class="finger-labels">
+            <span>Left</span>
+            <span>F</span>
+            <span>J</span>
+            <span>Right</span>
+        </div>
+    </div>
+
+    <div class="tip-box">
+        <i class="fas fa-lightbulb"></i>
+        <p>
+            <strong>Tip:</strong> Most keyboards have small bumps on the F and J keys to help you find the home row without looking.
+        </p>
+    </div>
+</div>
+
+<!-- Live WPM Demo -->
+
+
+<!-- Why Learn Touch Typing? -->
+<div class="section-container">
+    <div class="section-header">
+        <h2>Why Learn Touch Typing?</h2>
+    </div>
+
+    <ul class="benefits-list">
+        <li><i class="fas fa-check-circle"></i> <strong>Double your typing speed</strong> — from 20–30 WPM to 60+ WPM</li>
+        <li><i class="fas fa-check-circle"></i> <strong>Reduce errors</strong> by up to 80% with proper technique</li>
+        <li><i class="fas fa-check-circle"></i> <strong>Improve focus</strong> — look at the screen, not the keyboard</li>
+        <li><i class="fas fa-check-circle"></i> <strong>Better ergonomics</strong> — less strain on hands and eyes</li>
+        <li><i class="fas fa-check-circle"></i> <strong>Essential for coding, writing, and exams</strong></li>
+    </ul>
+</div>
+
+<!-- Testimonials -->
+<!-- Testimonials -->
+<div class="testimonials-section">
+    <div class="section-header">
+        <h2>What Users Say</h2>
+        <p>Join thousands who’ve transformed their typing skills.</p>
+    </div>
+
+    <div class="testimonials-slider">
+        <div class="testimonials-grid">
+            <!-- First Set -->
+            <div class="testimonial-card">
+                <p class="testimonial-text">“I went from 30 WPM to 85 WPM in just 3 weeks. The lessons are perfectly structured.”</p>
+                <div class="testimonial-author">
+                    <div class="author-avatar">A</div>
+                    <div class="author-info">
+                        <strong>Alex Morgan</strong>
+                        <span>Software Developer</span>
+                    </div>
+                </div>
+            </div>
+            <div class="testimonial-card">
+                <p class="testimonial-text">“Finally learned to type without looking. Game-changer for my productivity.”</p>
+                <div class="testimonial-author">
+                    <div class="author-avatar">S</div>
+                    <div class="author-info">
+                        <strong>Sophia Lee</strong>
+                        <span>College Student</span>
+                    </div>
+                </div>
+            </div>
+            <div class="testimonial-card">
+                <p class="testimonial-text">“The feedback and stats keep me motivated. I practice daily now.”</p>
+                <div class="testimonial-author">
+                    <div class="author-avatar">J</div>
+                    <div class="author-info">
+                        <strong>James Wu</strong>
+                        <span>Writer & Editor</span>
+                    </div>
+                </div>
+            </div>
+            <div class="testimonial-card">
+                <p class="testimonial-text">“I went from 30 WPM to 85 WPM in just 3 weeks. The lessons are perfectly structured.”</p>
+                <div class="testimonial-author">
+                    <div class="author-avatar">A</div>
+                    <div class="author-info">
+                        <strong>Alex Morgan</strong>
+                        <span>Software Developer</span>
+                    </div>
+                </div>
+            </div>
+            <div class="testimonial-card">
+                <p class="testimonial-text">“Finally learned to type without looking. Game-changer for my productivity.”</p>
+                <div class="testimonial-author">
+                    <div class="author-avatar">S</div>
+                    <div class="author-info">
+                        <strong>Sophia Lee</strong>
+                        <span>College Student</span>
+                    </div>
+                </div>
+            </div>
+            <div class="testimonial-card">
+                <p class="testimonial-text">“The feedback and stats keep me motivated. I practice daily now.”</p>
+                <div class="testimonial-author">
+                    <div class="author-avatar">J</div>
+                    <div class="author-info">
+                        <strong>James Wu</strong>
+                        <span>Writer & Editor</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Second Set (Duplicate for infinite scroll) -->
+            <div class="testimonial-card">
+                <p class="testimonial-text">“I went from 30 WPM to 85 WPM in just 3 weeks. The lessons are perfectly structured.”</p>
+                <div class="testimonial-author">
+                    <div class="author-avatar">A</div>
+                    <div class="author-info">
+                        <strong>Alex Morgan</strong>
+                        <span>Software Developer</span>
+                    </div>
+                </div>
+            </div>
+            <div class="testimonial-card">
+                <p class="testimonial-text">“Finally learned to type without looking. Game-changer for my productivity.”</p>
+                <div class="testimonial-author">
+                    <div class="author-avatar">S</div>
+                    <div class="author-info">
+                        <strong>Sophia Lee</strong>
+                        <span>College Student</span>
+                    </div>
+                </div>
+            </div>
+            <div class="testimonial-card">
+                <p class="testimonial-text">“The feedback and stats keep me motivated. I practice daily now.”</p>
+                <div class="testimonial-author">
+                    <div class="author-avatar">J</div>
+                    <div class="author-info">
+                        <strong>James Wu</strong>
+                        <span>Writer & Editor</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Call to Action -->
+<div class="cta-section">
+    <div class="cta-content">
+        <h2>Ready to Start Typing Like a Pro?</h2>
+        <p>
+            Our 23-lesson course takes you from beginner to advanced — one key at a time.
+        </p>
+        <a href="{{ url_for('index') }}" class="btn btn-primary btn-xl">
+            <i class="fas fa-arrow-right"></i>
+            Begin Your Journey
+        </a>
+    </div>
+</div>
+
+<!-- Typing Animation Script -->
+<script>
+    // Live Typing Animation
+    const phrases = [
+        "Typing is a skill.",
+        "Speed comes with practice.",
+        "Accuracy builds confidence.",
+        "Master touch typing."
+    ];
+    let phraseIndex = 0;
+    let charIndex = 0;
+    const typingDemo = document.getElementById('typingDemo');
+
+    function type() {
+        if (charIndex < phrases[phraseIndex].length) {
+            typingDemo.textContent += phrases[phraseIndex][charIndex];
+            charIndex++;
+            setTimeout(type, 100);
+        } else {
+            setTimeout(erase, 1500);
+        }
+    }
+
+    function erase() {
+        if (charIndex > 0) {
+            typingDemo.textContent = phrases[phraseIndex].substring(0, charIndex - 1);
+            charIndex--;
+            setTimeout(erase, 50);
+        } else {
+            phraseIndex = (phraseIndex + 1) % phrases.length;
+            setTimeout(type, 500);
+        }
+    }
+
+    type();
+
+    // Live WPM Counter Demo
+    const wpmCounter = document.getElementById('wpmCounter');
+    let wpm = 0;
+    const maxWpm = 68;
+
+    function animateWPM() {
+        if (wpm < maxWpm) {
+            wpm++;
+            wpmCounter.textContent = wpm.toString();
+            setTimeout(animateWPM, 120);
+        }
+    }
+
+    // Start WPM animation when in view
+    const wpmSection = document.querySelector('.wpm-demo');
+    const observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting) {
+            animateWPM();
+        }
+    });
+    observer.observe(wpmSection);
+</script>
+
+{% endblock %}

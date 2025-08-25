@@ -1,29 +1,23 @@
 {% extends "base.html" %}
 
-{% block title %}Typing Tutor - Learn to Type{% endblock %}
+{% block title %}Lessons - Professional Typing Tutor{% endblock %}
 
 {% block content %}
 <div class="hero-section">
     <div class="hero-content">
-        <h1 class="hero-title">
-            Master Touch Typing
-            <span class="hero-subtitle">Progressive lessons with 95% accuracy gates</span>
-        </h1>
-        <p class="hero-description">
-            Learn to type efficiently with our modern, interactive typing tutor. 
-            Progress through 21 carefully designed lessons with real-time finger positioning guidance.
-        </p>
+        <h1 class="hero-title">Master Touch Typing</h1>
+        <p class="hero-subtitle">Professional typing training with 23 progressive lessons</p>
         {% if not current_user.is_authenticated %}
-        <div class="hero-cta">
-            <a href="{{ url_for('register') }}" class="btn btn-primary btn-large">
-                <i class="fas fa-rocket"></i>
-                Start Learning
-            </a>
-            <a href="{{ url_for('practice', lesson_id=1) }}" class="btn btn-secondary btn-large">
-                <i class="fas fa-play"></i>
-                Try Free Lesson
-            </a>
-        </div>
+            <div class="hero-actions">
+                <a href="{{ url_for('practice', lesson_id=1) }}" class="btn btn-primary btn-large">
+                    <i class="fas fa-play"></i>
+                    Try Free Lesson
+                </a>
+                <a href="{{ url_for('register') }}" class="btn btn-outline btn-large">
+                    <i class="fas fa-user-plus"></i>
+                    Create Account
+                </a>
+            </div>
         {% endif %}
     </div>
 </div>
@@ -31,100 +25,131 @@
 <div class="lessons-section">
     <div class="section-header">
         <h2>Typing Lessons</h2>
-        <p>Progressive difficulty with accuracy gates to ensure mastery</p>
     </div>
 
     <div class="lessons-grid">
         {% for lesson in lessons %}
-        <div class="lesson-card {% if lesson.number not in unlocked_lessons %}lesson-locked{% endif %} {% if user_progress.get(lesson.id, {}).get('completed', False) %}lesson-completed{% endif %}">
-            <div class="lesson-header">
-                <div class="lesson-number">{{ lesson.number }}</div>
-                <div class="lesson-status">
-                    {% if lesson.number not in unlocked_lessons %}
-                        <i class="fas fa-lock"></i>
-                    {% elif user_progress.get(lesson.id, {}).get('completed', False) %}
-                        <i class="fas fa-check-circle"></i>
+            <div class="lesson-card {% if lesson.number in unlocked_lessons %}unlocked{% else %}locked{% endif %}">
+                <div class="lesson-header">
+                    <div class="lesson-number">{{ lesson.number }}</div>
+                    {% if lesson.number in unlocked_lessons %}
+                        <div class="lesson-status unlocked">
+                            <i class="fas fa-unlock"></i>
+                        </div>
                     {% else %}
-                        <i class="fas fa-play-circle"></i>
+                        <div class="lesson-status locked">
+                            <i class="fas fa-lock"></i>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="lesson-content">
+                    <h3 class="lesson-title">{{ lesson.title }}</h3>
+                    
+                    {% if current_user.is_authenticated and lesson.id in user_progress %}
+                        <div class="lesson-progress">
+                            <div class="progress-stats">
+                                <div class="stat">
+                                    <span class="stat-label">WPM</span>
+                                    <span class="stat-value">{{ user_progress[lesson.id].wpm|round(1) }}</span>
+                                </div>
+                                <div class="stat">
+                                    <span class="stat-label">Accuracy</span>
+                                    <span class="stat-value">{{ user_progress[lesson.id].accuracy|round(1) }}%</span>
+                                </div>
+                            </div>
+                            {% if user_progress[lesson.id].completed %}
+                                <div class="completion-badge">
+                                    <i class="fas fa-check-circle"></i>
+                                    <span>Completed</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="lesson-actions">
+                    {% if lesson.number in unlocked_lessons %}
+                        <a href="{{ url_for('practice', lesson_id=lesson.id) }}" class="btn btn-primary">
+                            {% if current_user.is_authenticated and lesson.id in user_progress %}
+                                <i class="fas fa-redo"></i>
+                                Practice Again
+                            {% else %}
+                                <i class="fas fa-play"></i>
+                                Start Lesson
+                            {% endif %}
+                        </a>
+                    {% else %}
+                        <button class="btn btn-disabled" disabled>
+                            <i class="fas fa-lock"></i>
+                            Locked
+                        </button>
                     {% endif %}
                 </div>
             </div>
-            
-            <div class="lesson-content">
-                <h3>{{ lesson.title }}</h3>
-                <p class="lesson-preview">{{ lesson.content | truncate(60) }}</p>
-                
-                {% if current_user.is_authenticated and lesson.id in user_progress %}
-                <div class="lesson-stats">
-                    <div class="stat">
-                        <span class="stat-value">{{ user_progress[lesson.id]['wpm'] | round(1) }}</span>
-                        <span class="stat-label">WPM</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-value">{{ user_progress[lesson.id]['accuracy'] | round(1) }}%</span>
-                        <span class="stat-label">Accuracy</span>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-            
-            <div class="lesson-footer">
-                {% if lesson.number in unlocked_lessons %}
-                    <a href="{{ url_for('practice', lesson_id=lesson.id) }}" class="btn btn-primary">
-                        {% if user_progress.get(lesson.id, {}).get('completed', False) %}
-                            <i class="fas fa-redo"></i> Practice Again
-                        {% else %}
-                            <i class="fas fa-play"></i> Start Lesson
-                        {% endif %}
-                    </a>
-                {% else %}
-                    <div class="lesson-requirement">
-                        <i class="fas fa-info-circle"></i>
-                        Complete Lesson {{ lesson.number - 1 }} with 95% accuracy
-                    </div>
-                {% endif %}
-            </div>
-        </div>
         {% endfor %}
     </div>
 </div>
 
 {% if current_user.is_authenticated %}
-<div class="progress-overview">
+<div class="stats-section">
     <div class="section-header">
         <h2>Your Progress</h2>
-        <a href="{{ url_for('progress') }}" class="btn btn-outline">View Details</a>
     </div>
     
-    <div class="progress-stats">
-        <div class="progress-stat">
-            <div class="progress-circle">
-                <svg viewBox="0 0 36 36">
-                    <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" 
-                          fill="none" stroke="#e2e8f0" stroke-width="3"/>
-                    <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" 
-                          fill="none" stroke="var(--primary-color)" stroke-width="3" 
-                          stroke-dasharray="{{ ((user_progress.values() | selectattr('completed', 'equalto', true) | list | length) / 21 * 100) | round(1) }}, 100"/>
-                </svg>
-                <div class="progress-text">
-                    {{ ((user_progress.values() | selectattr('completed', 'equalto', true) | list | length) / 21 * 100) | round(1) }}%
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-trophy"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-number">{{ user_progress|length }}</div>
+                <div class="stat-label">Lessons Attempted</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-number">
+                    {{ user_progress.values()|selectattr('completed')|list|length }}
                 </div>
+                <div class="stat-label">Lessons Completed</div>
             </div>
-            <span>Completion</span>
         </div>
         
-        <div class="progress-stat">
-            <div class="stat-number">
-                {{ user_progress.values() | selectattr('completed', 'equalto', true) | list | length }}
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-tachometer-alt"></i>
             </div>
-            <span>Lessons Completed</span>
+            <div class="stat-content">
+                <div class="stat-number">
+                    {% if user_progress %}
+                        {{ ((user_progress.values()|map(attribute='wpm')|sum) / (user_progress|length))|round(1) }}
+                    {% else %}
+                        0
+                    {% endif %}
+                </div>
+                <div class="stat-label">Average WPM</div>
+            </div>
         </div>
         
-        <div class="progress-stat">
-            <div class="stat-number">
-                {{ (user_progress.values() | map(attribute='wpm') | sum / user_progress.values() | length) | round(1) if user_progress else 0 }}
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-bullseye"></i>
             </div>
-            <span>Average WPM</span>
+            <div class="stat-content">
+                <div class="stat-number">
+                    {% if user_progress %}
+                        {{ ((user_progress.values()|map(attribute='accuracy')|sum) / (user_progress|length))|round(1) }}%
+                    {% else %}
+                        0%
+                    {% endif %}
+                </div>
+                <div class="stat-label">Average Accuracy</div>
+            </div>
         </div>
     </div>
 </div>

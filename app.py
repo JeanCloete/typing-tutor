@@ -6,6 +6,10 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from itsdangerous import URLSafeTimedSerializer
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -20,8 +24,8 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "you-should-change-this-in-production")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-# Configure the database
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///typing_tutor.db")
+# Configure the database - MySQL/PostgreSQL compatible
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "postgresql://localhost/typing_tutor")
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
@@ -64,6 +68,10 @@ with app.app_context():
         db.session.commit()
 
 @app.route('/')
+def home():
+    return render_template('home.html')
+@app.route('/index')
+@app.route('/lessons')
 def index():
     lessons = Lesson.query.order_by(Lesson.number).all()
     user_progress = {}
@@ -94,26 +102,43 @@ def index():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        email = request.form['email']
-        first_name = request.form['first_name']
-        last_name = request.form['last_name']
-        password = request.form['password']
+        # Fixed registration with proper validation
+        email = request.form.get('email', '').strip()
+        first_name = request.form.get('first_name', '').strip()
+        last_name = request.form.get('last_name', '').strip()
+        password = request.form.get('password', '')
         
+        # Validation
+        if not email or not first_name or not last_name or not password:
+            flash("All fields are required.", "error")
+            return redirect(url_for('register'))
+        
+        if len(password) < 6:
+            flash("Password must be at least 6 characters long.", "error")
+            return redirect(url_for('register'))
+        
+        # Check if user already exists
         if User.query.filter_by(email=email).first():
             flash("Email already exists.", "error")
             return redirect(url_for('register'))
         
-        password_hash = generate_password_hash(password)
-        user = User()
-        user.email = email
-        user.first_name = first_name
-        user.last_name = last_name
-        user.password_hash = password_hash
-        db.session.add(user)
-        db.session.commit()
-        
-        flash("Account created successfully!", "success")
-        return redirect(url_for('login'))
+        try:
+            password_hash = generate_password_hash(password)
+            user = User()
+            user.email = email
+            user.first_name = first_name
+            user.last_name = last_name
+            user.password_hash = password_hash
+            db.session.add(user)
+            db.session.commit()
+            
+            flash("Account created successfully! Please login.", "success")
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            logging.error(f"Registration error: {e}")
+            flash("An error occurred during registration. Please try again.", "error")
+            return redirect(url_for('register'))
     
     return render_template('register.html')
 
@@ -126,17 +151,113 @@ def login():
         user = User.query.filter_by(email=email).first()
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
-            return redirect(url_for('index'))
+            return redirect(url_for('home'))
         else:
             flash("Invalid email or password.", "error")
     
     return render_template('login.html')
 
+# Email Configuration (Gmail SMTP)
+app.config['MAIL_USERNAME'] = 'jeancloete.ncape@gmail.com'
+app.config['MAIL_PASSWORD'] = 'your-app-password'  # NOT your regular password
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip()
+        if not email:
+            flash("Email is required.", "error")
+            return redirect(url_for('forgot_password'))
+
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            flash("If that email is registered, a password reset link has been sent.", "info")
+            return redirect(url_for('login'))
+
+        # Generate reset token
+        token = serializer.dumps(user.email, salt='password-reset-salt')
+        reset_url = url_for('reset_password', token=token, _external=True)
+
+        # Send email via SMTP
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = "Password Reset Request"
+            msg["From"] = app.config['MAIL_USERNAME']
+            msg["To"] = email
+
+            text = f"""
+            Hello,
+
+            You requested a password reset for your TypingPro account.
+
+            Click the link below to reset your password:
+            {reset_url}
+
+            This link expires in 1 hour.
+
+            If you didn't request this, please ignore this email.
+
+            Best regards,
+            The TypingPro Team
+            """
+
+            html = f"""
+            <p>Hello,</p>
+            <p>You requested a password reset for your <strong>TypingPro</strong> account.</p>
+            <p><a href="{reset_url}" style="color: #10b981; font-weight: 600;">Reset Your Password</a></p>
+            <p><small>This link expires in 1 hour.</small></p>
+            <p>If you didn't request this, please ignore this email.</p>
+            <p>Best regards,<br><strong>The TypingPro Team</strong></p>
+            """
+
+            part1 = MIMEText(text, "plain")
+            part2 = MIMEText(html, "html")
+            msg.attach(part1)
+            msg.attach(part2)
+
+            with smtplib.SMTP("smtp.gmail.com", 587) as server:
+                server.starttls()
+                server.login(app.config['MAIL_USERNAME'], app.config['MAIL_PASSWORD'])
+                server.sendmail(msg["From"], msg["To"], msg.as_string())
+
+            flash("If that email is registered, a password reset link has been sent.", "info")
+            return redirect(url_for('login'))
+
+        except Exception as e:
+            logging.error(f"SMTP Email Error: {e}")
+            flash("Failed to send email. Please try again.", "error")
+            return redirect(url_for('forgot_password'))
+
+    return render_template('forgot_password.html')
+
+@app.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    try:
+        email = serializer.loads(token, salt='password-reset-salt', max_age=3600)
+    except Exception:
+        flash("Invalid or expired link.", "error")
+        return redirect(url_for('forgot_password'))
+
+    if request.method == 'POST':
+        password = request.form.get('password', '')
+        if len(password) < 6:
+            flash("Password must be at least 6 characters long.", "error")
+            return redirect(url_for('reset_password', token=token))
+
+        user = User.query.filter_by(email=email).first()
+        if user:
+            user.password_hash = generate_password_hash(password)
+            db.session.commit()
+            flash("Your password has been updated.", "success")
+            return redirect(url_for('login'))
+
+    return render_template('reset_password.html', token=token)
+
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
-    return redirect(url_for('index'))
+    return redirect(url_for('home'))
 
 @app.route('/lesson/<int:lesson_id>')
 def practice(lesson_id):
@@ -185,20 +306,28 @@ def save_progress(lesson_id):
         progress.lesson_id = lesson_id
     
     # Update progress only if this attempt is better
-    if wpm > progress.wpm or (wpm == progress.wpm and accuracy > progress.accuracy):
+    # Always update if current accuracy is < 95%
+    if progress.accuracy < 95.0:
         progress.wpm = wpm
         progress.accuracy = accuracy
         progress.time_taken = time_taken
         progress.error_count = errors
+    else:
+        # Only update if new attempt is better (protect passing score)
+        if wpm > progress.wpm or (wpm == progress.wpm and accuracy > progress.accuracy):
+            progress.wpm = wpm
+            progress.accuracy = accuracy
+            progress.time_taken = time_taken
+            progress.error_count = errors
     
     db.session.add(progress)
     db.session.commit()
     
     # Check for achievements
     achievements = []
-    if accuracy >= 95.0 and lesson_id < 21:
+    if accuracy >= 95.0 and lesson_id < 23:
         achievements.append(f"Lesson {lesson_id} completed! Lesson {lesson_id + 1} unlocked!")
-    elif accuracy >= 95.0 and lesson_id == 21:
+    elif accuracy >= 95.0 and lesson_id == 23:
         achievements.append("Congratulations! You've completed all lessons!")
     
     if wpm >= 40 and accuracy >= 95.0:
@@ -217,12 +346,13 @@ def lesson_complete(lesson_id):
     lesson = Lesson.query.get_or_404(lesson_id)
     progress = Progress.query.filter_by(user_id=current_user.id, lesson_id=lesson_id).first()
     
+    # Must have completed with ≥95% accuracy
     if not progress or progress.accuracy < 95.0:
         return redirect(url_for('practice', lesson_id=lesson_id))
     
     next_lesson = None
-    if lesson_id < 21:
-        next_lesson = Lesson.query.filter_by(number=lesson_id + 1).first()
+    if lesson_id < 23:
+        next_lesson = Lesson.query.filter_by(number=lesson.number + 1).first()
     
     return render_template('lesson_complete.html', lesson=lesson, progress=progress, next_lesson=next_lesson)
 
