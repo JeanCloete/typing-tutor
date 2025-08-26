@@ -317,7 +317,9 @@ def save_progress(lesson_id):
     
     # Update progress only if this attempt is better
     # Always update if current accuracy is < 95%
-    if progress.accuracy < 95.0:
+    current_accuracy = progess.accuracy if progress.accuracy is None else 0.0
+    current_wpm = progress.wpm if progress.wpm is not None else 0
+    if current_accuracy < 95.0:
         progress.wpm = wpm
         progress.accuracy = accuracy
         progress.time_taken = time_taken
@@ -347,7 +349,7 @@ def save_progress(lesson_id):
         "status": "saved",
         "achievements": achievements,
         "accuracy_met": accuracy >= 95.0,
-        "next_lesson_unlocked": accuracy >= 95.0 and lesson_id < 21
+        "next_lesson_unlocked": accuracy >= 95.0 and lesson_id < 23
     })
 
 @app.route('/lesson_complete/<int:lesson_id>')
