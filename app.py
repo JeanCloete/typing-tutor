@@ -317,7 +317,7 @@ def save_progress(lesson_id):
     
     # Update progress only if this attempt is better
     # Always update if current accuracy is < 95%
-    current_accuracy = progress.accuracy if progress.accuracy is None else 0.0
+    current_accuracy = progress.accuracy if progress.accuracy is not None else 0.0
     current_wpm = progress.wpm if progress.wpm is not None else 0
     if current_accuracy < 95.0:
         progress.wpm = wpm
